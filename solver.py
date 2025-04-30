@@ -521,7 +521,7 @@ class Solver(object):
                 print ('Decayed learning rates, g_lr: {}, d_lr: {}.'.format(g_lr, d_lr))
 
     def test(self):
-        """Translate images using StarGAN trained on a single dataset."""
+        """Generate a single translated image using StarGAN trained on a single dataset."""
         # Load the trained generator.
         self.restore_model(self.test_iters)
         
@@ -531,23 +531,30 @@ class Solver(object):
         elif self.dataset == 'RaFD':
             data_loader = self.rafd_loader
         
+        # Get target attributes from config.
+        if hasattr(self, 'target_attrs') and self.target_attrs is not None:
+            # Parse target_attrs (e.g., "1,0,0,1,1" -> [1, 0, 0, 1, 1])
+            target_attrs = [float(x) for x in self.target_attrs.split(',')]
+            if len(target_attrs) != self.c_dim:
+                raise ValueError(f"Target attributes must have length {self.c_dim}, got {len(target_attrs)}")
+            c_trg = torch.tensor(target_attrs, dtype=torch.float32).unsqueeze(0).to(self.device)
+        else:
+            # Default attribute vector (e.g., Black_Hair=1, Male=1, Young=1, others=0)
+            default_attrs = [1, 0, 0, 1, 1]  # Adjust based on selected_attrs order
+            c_trg = torch.tensor(default_attrs, dtype=torch.float32).unsqueeze(0).to(self.device)
+
         with torch.no_grad():
-            for i, (x_real, c_org) in enumerate(data_loader):
+            # Take the first image from the data loader.
+            x_real, _ = next(iter(data_loader))
+            x_real = x_real[0:1].to(self.device)  # Select only the first image (batch size = 1)
 
-                # Prepare input images and target domain labels.
-                x_real = x_real.to(self.device)
-                c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+            # Translate the image with the target attributes.
+            x_fake = self.G(x_real, c_trg)
 
-                # Translate images.
-                x_fake_list = [x_real]
-                for c_trg in c_trg_list:
-                    x_fake_list.append(self.G(x_real, c_trg))
-
-                # Save the translated images.
-                x_concat = torch.cat(x_fake_list, dim=3)
-                result_path = os.path.join(self.result_dir, '{}-images.jpg'.format(i+1))
-                save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
-                print('Saved real and fake images into {}...'.format(result_path))
+            # Save the translated image.
+            result_path = os.path.join(self.result_dir, 'translated_image.jpg')
+            save_image(self.denorm(x_fake.data.cpu()), result_path, nrow=1, padding=0)
+            print(f'Saved translated image into {result_path}...')
 
     def test_multi(self):
         """Translate images using StarGAN trained on multiple datasets."""
