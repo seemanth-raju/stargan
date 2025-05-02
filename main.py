@@ -36,7 +36,7 @@ def main(config):
                                  'RaFD', config.mode, config.num_workers)
     
 
-    # Solver for training and testing StarGAN.
+    # Solver for training, testing, and single image translation.
     solver = Solver(celeba_loader, rafd_loader, config)
 
     if config.mode == 'train':
@@ -49,6 +49,12 @@ def main(config):
             solver.test()
         elif config.dataset in ['Both']:
             solver.test_multi()
+    elif config.mode == 'single':
+        if not os.path.exists(config.image_path):
+            print(f"Error: Input image path {config.image_path} does not exist.")
+            return
+        solver.translate_single_image(config.image_path, config.output_path, config.selected_attrs)
+        print(f"Single image translation completed. Output saved to {config.output_path}")
 
 
 if __name__ == '__main__':
@@ -67,7 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('--lambda_cls', type=float, default=1, help='weight for domain classification loss')
     parser.add_argument('--lambda_rec', type=float, default=10, help='weight for reconstruction loss')
     parser.add_argument('--lambda_gp', type=float, default=10, help='weight for gradient penalty')
-
+    
     # Training configuration.
     parser.add_argument('--dataset', type=str, default='CelebA', choices=['CelebA', 'RaFD', 'Both'])
     parser.add_argument('--batch_size', type=int, default=16, help='mini-batch size')
@@ -83,13 +89,16 @@ if __name__ == '__main__':
                         default=['Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Male', 'Young'])
 
     # Test configuration.
-    parser.add_argument('--test_iters', type=int, default=200000, help='test model from this step')  # Add this line
+    parser.add_argument('--test_iters', type=int, default=200000, help='test model from this step')
+
+    # Single image translation configuration.
+    parser.add_argument('--image_path', type=str, default=None, help='path to input image for single image translation')
+    parser.add_argument('--output_path', type=str, default='stargan/single_output.jpg', help='path to save output for single image translation')
 
     # Miscellaneous.
     parser.add_argument('--num_workers', type=int, default=1)
-    parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'])
+    parser.add_argument('--mode', type=str, default='train', choices=['train', 'test', 'single'], help='operation mode: train, test, or single image translation')
     parser.add_argument('--use_tensorboard', type=str2bool, default=True)
-    parser.add_argument('--target_attrs', type=str, default=None, help='target attributes for testing (e.g., "1,0,0,1,1" for Black_Hair,Blond_Hair,Brown_Hair,Male,Young)')
 
     # Directories.
     parser.add_argument('--celeba_image_dir', type=str, default='data/celeba/images')
